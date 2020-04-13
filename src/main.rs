@@ -34,6 +34,8 @@ enum PrepareResult {
     Success,
     UnrecognizedStatement,
     SyntaxError,
+    StringTooLong,
+    NegativeID
 }
 
 enum StatementType {
@@ -107,6 +109,33 @@ fn do_meta_command(input_buffer: &InputBuffer) -> MetaCommandResult {
     }
 }
 
+fn prepare_insert(args: &Vec<&str>, statement: &mut Statement) -> PrepareResult {
+    statement.row_to_insert.id = match FromStr::from_str(args[1]) {
+        Ok(uint) => uint,
+        Err(_) => return PrepareResult::NegativeID,
+    };
+
+    let ubytes = args[2].as_bytes();
+    let ulen = ubytes.len();
+    if ulen > USERNAME_SIZE {
+        return PrepareResult::StringTooLong;
+    }
+    let mut username_bytes = [0u8; USERNAME_SIZE];
+    username_bytes[0..ulen].copy_from_slice(args[2].as_bytes());
+    statement.row_to_insert.username = username_bytes;
+
+    let ebytes = args[3].as_bytes();
+    let elen = ebytes.len();
+    if elen > EMAIL_SIZE {
+        return PrepareResult::StringTooLong;
+    }
+    let mut email_bytes = [0u8; EMAIL_SIZE];
+    email_bytes[0..elen].copy_from_slice(args[3].as_bytes());
+    statement.row_to_insert.email = email_bytes;
+
+    PrepareResult::Success
+}
+
 fn prepare_statement(input_buffer: &InputBuffer, statement: &mut Statement) -> PrepareResult {
     if &input_buffer.buffer[0..6] == "insert" {
         statement.stmt_type = StatementType::Insert;
@@ -115,20 +144,8 @@ fn prepare_statement(input_buffer: &InputBuffer, statement: &mut Statement) -> P
         if args.len() < 4 {
             return PrepareResult::SyntaxError;
         } else {
-            statement.row_to_insert.id = FromStr::from_str(args[1]).unwrap();
-            
-            let mut username_bytes = [0u8; USERNAME_SIZE];
-            let ulen = args[2].as_bytes().len();
-            username_bytes[0..ulen].copy_from_slice(args[2].as_bytes());
-            statement.row_to_insert.username = username_bytes;
-            
-            let mut email_bytes = [0u8; EMAIL_SIZE];
-            let elen = args[3].as_bytes().len();
-            email_bytes[0..elen].copy_from_slice(args[3].as_bytes());
-            statement.row_to_insert.email = email_bytes;
+            return prepare_insert(&args, statement);
         }
-
-        return PrepareResult::Success;
     }
 
     if &input_buffer.buffer[0..6] == "select" {
@@ -190,9 +207,12 @@ fn serialize_row(row: Row, table: &mut Table, page_num: u32) {
 fn deserialize_row(table: &Table, page_num: u32, byte_offset: u32) -> Row {
     let offset = byte_offset as usize;
     let mut id_byte_arr = [0; 4];
-    let id_bytes_slice = &table.pages[page_num as usize][(offset + ID_OFFSET)..(offset + ID_OFFSET + ID_SIZE)];
-    let username_bytes = &table.pages[page_num as usize][(offset + USERNAME_OFFSET)..(offset + USERNAME_OFFSET + USERNAME_SIZE)];
-    let email_bytes = &table.pages[page_num as usize][(offset + EMAIL_OFFSET)..(offset + EMAIL_OFFSET + EMAIL_SIZE)];
+    let id_bytes_slice =
+        &table.pages[page_num as usize][(offset + ID_OFFSET)..(offset + ID_OFFSET + ID_SIZE)];
+    let username_bytes = &table.pages[page_num as usize]
+        [(offset + USERNAME_OFFSET)..(offset + USERNAME_OFFSET + USERNAME_SIZE)];
+    let email_bytes = &table.pages[page_num as usize]
+        [(offset + EMAIL_OFFSET)..(offset + EMAIL_OFFSET + EMAIL_SIZE)];
 
     id_byte_arr.copy_from_slice(id_bytes_slice);
     let id = u32::from_ne_bytes(id_byte_arr);
@@ -204,7 +224,7 @@ fn deserialize_row(table: &Table, page_num: u32, byte_offset: u32) -> Row {
     Row {
         id,
         username,
-        email
+        email,
     }
 }
 
@@ -219,7 +239,12 @@ fn execute_select(statement: &Statement, table: &Table) -> ExecuteResult {
 }
 
 fn print_row(row: &Row) {
-    println!("({}, {}, {})", row.id, std::str::from_utf8(&row.username).unwrap(), std::str::from_utf8(&row.email).unwrap());
+    println!(
+        "({}, {}, {})",
+        row.id,
+        std::str::from_utf8(&row.username).unwrap(),
+        std::str::from_utf8(&row.email).unwrap()
+    );
 }
 
 fn main() {
@@ -265,13 +290,21 @@ fn main() {
             PrepareResult::SyntaxError => {
                 println!("Syntax error. Could not parse statement.");
                 continue;
+            },
+            PrepareResult::StringTooLong => {
+                println!("String is too long.");
+                continue;
+            },
+            PrepareResult::NegativeID => {
+                println!("ID must be positive.");
+                continue;
             }
         }
 
         match execute_statement(&statement, &mut table) {
             ExecuteResult::Success => {
                 println!("Executed.");
-            },
+            }
             ExecuteResult::TableFull => {
                 println!("Error: Table full.");
             }
