@@ -1,6 +1,8 @@
 #![allow(dead_code)]
 
-use std::io::{self, BufRead, Write};
+use std::env;
+use std::fs::{File, OpenOptions};
+use std::io::{self, BufRead, Read, Seek, SeekFrom, Write};
 use std::str::FromStr;
 
 const PAGE_SIZE: u32 = 4096;
@@ -35,7 +37,7 @@ enum PrepareResult {
     UnrecognizedStatement,
     SyntaxError,
     StringTooLong,
-    NegativeID
+    NegativeID,
 }
 
 enum StatementType {
@@ -55,9 +57,15 @@ struct Row {
     email: [u8; EMAIL_SIZE],
 }
 
+struct Pager {
+    file: File,
+    file_length: u64,
+    pages: Vec<Vec<u8>>,
+}
+
 struct Table {
     num_rows: u32,
-    pages: Vec<Vec<u8>>,
+    pager: Pager,
 }
 
 enum ExecuteResult {
@@ -87,10 +95,118 @@ impl InputBuffer {
 }
 
 impl Table {
-    fn new() -> Self {
-        Table {
+    fn db_open(filename: &str) -> Self {
+        let pager = Pager::open(filename);
+        let num_rows = pager.file_length as u32 / ROW_SIZE;
+        Table { pager, num_rows }
+    }
+
+    fn db_close(&mut self) {
+        let num_full_pages = self.num_rows / ROWS_PER_PAGE;
+
+        for i in 0..num_full_pages {
+            if self.pager.pages[i as usize].len() == 0 {
+                continue;
+            }
+            self.pager.flush(i);
+        }
+
+        // There may be a partial page to write to the end of the file
+        // This should not be needed after we switch to a B-tree
+        let num_add_rows = self.num_rows % ROWS_PER_PAGE;
+        if num_add_rows > 0 {
+            let page_num = num_full_pages;
+            if !self.pager.pages[page_num as usize].is_empty() {
+                self.pager.flush(page_num);
+            }
+        }
+
+        if let Err(_) = self.pager.file.sync_data() {
+            println!("Error closing db file.");
+            std::process::exit(1);
+        }
+    }
+}
+
+impl Pager {
+    fn open(filename: &str) -> Self {
+        let mut file = OpenOptions::new()
+            .write(true)
+            .read(true)
+            .create(true)
+            .open(filename)
+            .unwrap();
+        let file_length = file.seek(SeekFrom::End(0)).unwrap();
+
+        Pager {
+            file,
+            file_length,
             pages: vec![vec![]; TABLE_MAX_PAGES as usize],
-            num_rows: 0,
+        }
+    }
+    fn get_page(&mut self, page_num: u32) {
+        if page_num > TABLE_MAX_PAGES {
+            println!(
+                "Tried to fetch page number out of bounds. {} > {}",
+                page_num, TABLE_MAX_PAGES
+            );
+            std::process::exit(1);
+        }
+
+        if self.pages[page_num as usize].len() == 0 {
+            // Cache miss. Load from file
+            let mut num_pages = self.file_length / PAGE_SIZE as u64;
+
+            // We might save a partial page at the end of the file
+            if self.file_length % PAGE_SIZE as u64 > 0 {
+                num_pages += 1;
+            }
+
+            if page_num as u64 <= num_pages {
+                if let Err(_) = self
+                    .file
+                    .seek(SeekFrom::Start((page_num * PAGE_SIZE) as u64))
+                {
+                    println!("Error seeking file.");
+                    std::process::exit(1);
+                }
+                let buf_size: usize = if ((page_num * PAGE_SIZE) as u64) <= self.file_length {
+                    (self.file_length - (page_num * PAGE_SIZE) as u64) as usize
+                } else {
+                    PAGE_SIZE as usize
+                };
+
+                let mut page: Vec<u8> = vec![0; buf_size];
+                // TODO: Better error handling mechanism
+                if let Err(_) = self.file.read_exact(page.as_mut_slice()) {
+                    println!("Error reading file. {}", page.len());
+                    std::process::exit(1);
+                }
+                self.pages[page_num as usize].extend_from_slice(page.as_slice());
+            }
+        }
+    }
+
+    fn flush(&mut self, page_num: u32) {
+        if self.pages[page_num as usize].is_empty() {
+            println!("Tried to flush null page");
+            std::process::exit(1);
+        }
+
+        if let Err(_) = self
+            .file
+            .seek(SeekFrom::Start((page_num * PAGE_SIZE) as u64))
+        {
+            println!("Error seeking.");
+            std::process::exit(1);
+        }
+
+        let drained_vec: Vec<u8> = self.pages[page_num as usize].drain(..).collect();
+        self.pages[page_num as usize].shrink_to_fit();
+
+        if let Err(_) = self.file.write_all(drained_vec.as_ref()) {
+            println!("Error writing.");
+            std::process::exit(1);
         }
     }
 }
@@ -101,8 +217,9 @@ fn print_prompt() {
     io::stdout().flush().expect("Could not flush stdout");
 }
 
-fn do_meta_command(input_buffer: &InputBuffer) -> MetaCommandResult {
+fn do_meta_command(input_buffer: &InputBuffer, table: &mut Table) -> MetaCommandResult {
     if input_buffer.buffer == ".exit" {
+        table.db_close();
         std::process::exit(0);
     } else {
         return MetaCommandResult::UnrecognizedCommand;
@@ -161,7 +278,7 @@ fn execute_statement(statement: &Statement, table: &mut Table) -> ExecuteResult 
             return execute_insert(statement, table);
         }
         StatementType::Select => {
-            return execute_select(statement, &*table);
+            return execute_select(statement, table);
         }
         StatementType::Empty => {
             println!("Empty statement");
@@ -181,17 +298,18 @@ fn execute_insert(statement: &Statement, table: &mut Table) -> ExecuteResult {
         email: statement.row_to_insert.email.clone(),
     };
 
-    let (page_num, _) = row_slot(table.num_rows);
+    let (page_num, _) = row_slot(table, table.num_rows);
     serialize_row(row, table, page_num);
     table.num_rows += 1;
 
     return ExecuteResult::Success;
 }
 
-fn row_slot(row_num: u32) -> (u32, u32) {
+fn row_slot(table: &mut Table, row_num: u32) -> (u32, u32) {
     let page_num = row_num / ROWS_PER_PAGE;
     let row_offset = row_num % ROWS_PER_PAGE;
     let byte_offset = row_offset * ROW_SIZE;
+    table.pager.get_page(page_num);
     (page_num, byte_offset)
 }
 
@@ -199,19 +317,19 @@ fn serialize_row(row: Row, table: &mut Table, page_num: u32) {
     let id_bytes = row.id.to_ne_bytes();
     let username_bytes = row.username;
     let email_bytes = row.email;
-    table.pages[page_num as usize].extend_from_slice(&id_bytes);
-    table.pages[page_num as usize].extend_from_slice(&username_bytes);
-    table.pages[page_num as usize].extend_from_slice(&email_bytes);
+    table.pager.pages[page_num as usize].extend_from_slice(&id_bytes);
+    table.pager.pages[page_num as usize].extend_from_slice(&username_bytes);
+    table.pager.pages[page_num as usize].extend_from_slice(&email_bytes);
 }
 
 fn deserialize_row(table: &Table, page_num: u32, byte_offset: u32) -> Row {
     let offset = byte_offset as usize;
     let mut id_byte_arr = [0; 4];
     let id_bytes_slice =
-        &table.pages[page_num as usize][(offset + ID_OFFSET)..(offset + ID_OFFSET + ID_SIZE)];
-    let username_bytes = &table.pages[page_num as usize]
+        &table.pager.pages[page_num as usize][(offset + ID_OFFSET)..(offset + ID_OFFSET + ID_SIZE)];
+    let username_bytes = &table.pager.pages[page_num as usize]
         [(offset + USERNAME_OFFSET)..(offset + USERNAME_OFFSET + USERNAME_SIZE)];
-    let email_bytes = &table.pages[page_num as usize]
+    let email_bytes = &table.pager.pages[page_num as usize]
         [(offset + EMAIL_OFFSET)..(offset + EMAIL_OFFSET + EMAIL_SIZE)];
 
     id_byte_arr.copy_from_slice(id_bytes_slice);
@@ -229,10 +347,9 @@ fn deserialize_row(table: &Table, page_num: u32, byte_offset: u32) -> Row {
 }
 
 #[allow(unused_variables)]
-fn execute_select(statement: &Statement, table: &Table) -> ExecuteResult {
+fn execute_select(statement: &Statement, table: &mut Table) -> ExecuteResult {
     for i in 0..table.num_rows {
-        let (page_num, byte_offset) = row_slot(i);
-        // println!("{} {}", page_num, byte_offset);
+        let (page_num, byte_offset) = row_slot(table, i);
         print_row(&deserialize_row(table, page_num, byte_offset));
     }
     return ExecuteResult::Success;
@@ -242,14 +359,23 @@ fn print_row(row: &Row) {
     println!(
         "({}, {}, {})",
         row.id,
-        std::str::from_utf8(&row.username).unwrap(),
-        std::str::from_utf8(&row.email).unwrap()
+        std::str::from_utf8(&row.username).unwrap().trim_end_matches(char::from(0)),
+        std::str::from_utf8(&row.email).unwrap().trim_end_matches(char::from(0))
     );
 }
 
 fn main() {
+    let args: Vec<String> = env::args().collect();
+
+    if args.len() < 2 {
+        println!("Must supply database filename.");
+        std::process::exit(1);
+    }
+
+    let filename = &args[1];
+
     let mut input_buffer = InputBuffer::new();
-    let mut table = Table::new();
+    let mut table = Table::db_open(filename);
 
     loop {
         print_prompt();
@@ -260,7 +386,7 @@ fn main() {
         }
 
         if input_buffer.buffer.chars().next().unwrap() == '.' {
-            match do_meta_command(&input_buffer) {
+            match do_meta_command(&input_buffer, &mut table) {
                 MetaCommandResult::Success => continue,
                 MetaCommandResult::UnrecognizedCommand => {
                     println!("Unrecognized command '{}'.", input_buffer.buffer);
@@ -290,11 +416,11 @@ fn main() {
             PrepareResult::SyntaxError => {
                 println!("Syntax error. Could not parse statement.");
                 continue;
-            },
+            }
             PrepareResult::StringTooLong => {
                 println!("String is too long.");
                 continue;
-            },
+            }
             PrepareResult::NegativeID => {
                 println!("ID must be positive.");
                 continue;
