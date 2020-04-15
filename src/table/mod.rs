@@ -51,6 +51,16 @@ pub struct Row {
     pub email: [u8; EMAIL_SIZE],
 }
 
+impl Row {
+    pub fn new() -> Self {
+        Row {
+            id: 0,
+            username: [0u8; USERNAME_SIZE],
+            email: [0u8; EMAIL_SIZE],
+        }
+    }
+}
+
 pub fn print_row(row: &Row) {
     println!(
         "({}, {}, {})",

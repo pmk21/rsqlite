@@ -7,11 +7,11 @@ mod table;
 mod vm;
 
 use buffer::InputBuffer;
-use constants::*;
-use table::{Row, Table};
+use table::Table;
+use vm::statement::Statement;
 use vm::{
     do_meta_command, execute_statement, prepare_statement, ExecuteResult, MetaCommandResult,
-    PrepareResult, Statement, StatementType,
+    PrepareResult,
 };
 
 fn print_prompt() {
@@ -50,14 +50,7 @@ fn main() {
             }
         }
 
-        let mut statement: Statement = Statement {
-            stmt_type: StatementType::Empty,
-            row_to_insert: Row {
-                id: 0,
-                username: [0u8; USERNAME_SIZE],
-                email: [0u8; EMAIL_SIZE],
-            },
-        };
+        let mut statement: Statement = Statement::new();
 
         match prepare_statement(&input_buffer, &mut statement) {
             PrepareResult::Success => (),

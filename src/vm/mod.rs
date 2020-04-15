@@ -3,6 +3,10 @@ use crate::constants::{EMAIL_SIZE, TABLE_MAX_ROWS, USERNAME_SIZE};
 use crate::table::{deserialize_row, print_row, row_slot, serialize_row, Row, Table};
 use std::str::FromStr;
 
+pub mod statement;
+
+use statement::{Statement, StatementType};
+
 pub enum ExecuteResult {
     Success,
     TableFull,
@@ -18,17 +22,6 @@ pub enum PrepareResult {
     SyntaxError,
     StringTooLong,
     NegativeID,
-}
-
-pub enum StatementType {
-    Insert,
-    Select,
-    Empty,
-}
-
-pub struct Statement {
-    pub stmt_type: StatementType,
-    pub row_to_insert: Row,
 }
 
 pub fn do_meta_command(input_buffer: &InputBuffer, table: &mut Table) -> MetaCommandResult {
