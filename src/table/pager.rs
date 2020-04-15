@@ -1,4 +1,4 @@
-use crate::constants::{TABLE_MAX_PAGES, PAGE_SIZE};
+use crate::constants::{PAGE_SIZE, TABLE_MAX_PAGES};
 use std::fs::{File, OpenOptions};
 use std::io::{Read, Seek, SeekFrom, Write};
 

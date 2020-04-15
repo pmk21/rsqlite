@@ -121,18 +121,15 @@ fn check_persistence() -> Result<(), Box<dyn std::error::Error>> {
         .arg("test.db")
         .write_stdin("insert 1 user1 user1@example.com\n.exit\n")
         .assert();
-        
+
     let output_str = String::from_utf8(assert.success().get_output().stdout.clone()).unwrap();
     let op1: Vec<&str> = output_str.split('\n').collect();
-        
+
     assert_eq!(op1, expected_op1);
 
     let expected_op2: Vec<&str> = vec!["db > (1, user1, user1@example.com)", "Executed.", "db > "];
 
-    let assert = cmd
-    .arg("test.db")
-    .write_stdin("select\n.exit\n")
-    .assert();
+    let assert = cmd.arg("test.db").write_stdin("select\n.exit\n").assert();
 
     println!("{:#?}", assert);
 
