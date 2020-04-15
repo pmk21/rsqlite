@@ -82,7 +82,7 @@ pub fn prepare_statement(input_buffer: &InputBuffer, statement: &mut Statement) 
 pub fn execute_statement(statement: &Statement, table: &mut Table) -> ExecuteResult {
     match statement.stmt_type {
         StatementType::Insert => execute_insert(statement, table),
-        StatementType::Select => execute_select(statement, table),
+        StatementType::Select => execute_select(table),
         StatementType::Empty => {
             println!("Empty statement");
             ExecuteResult::Success
@@ -108,8 +108,7 @@ pub fn execute_insert(statement: &Statement, table: &mut Table) -> ExecuteResult
     ExecuteResult::Success
 }
 
-#[allow(unused_variables)]
-pub fn execute_select(statement: &Statement, table: &mut Table) -> ExecuteResult {
+pub fn execute_select(table: &mut Table) -> ExecuteResult {
     for i in 0..table.num_rows {
         let (page_num, byte_offset) = row_slot(table, i);
         print_row(&table.deserialize_row(page_num, byte_offset));
