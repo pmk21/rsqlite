@@ -1,7 +1,11 @@
 use std::env;
 use std::fs::{File, OpenOptions};
-use std::io::{self, BufRead, Read, Seek, SeekFrom, Write};
+use std::io::{self, Read, Seek, SeekFrom, Write};
 use std::str::FromStr;
+
+mod buffer;
+
+use buffer::InputBuffer;
 
 const PAGE_SIZE: u32 = 4096;
 const TABLE_MAX_PAGES: u32 = 100;
@@ -15,10 +19,6 @@ const ID_OFFSET: usize = 0;
 const USERNAME_OFFSET: usize = ID_OFFSET + ID_SIZE;
 const EMAIL_OFFSET: usize = USERNAME_OFFSET + USERNAME_SIZE;
 const ROW_SIZE: u32 = (ID_SIZE + USERNAME_SIZE + EMAIL_SIZE) as u32;
-
-struct InputBuffer {
-    buffer: String,
-}
 
 enum MetaCommandResult {
     UnrecognizedCommand,
@@ -63,25 +63,6 @@ struct Table {
 enum ExecuteResult {
     Success,
     TableFull,
-}
-
-impl InputBuffer {
-    fn new() -> Self {
-        InputBuffer {
-            buffer: String::new(),
-        }
-    }
-
-    fn read_input(&mut self) {
-        self.buffer.clear();
-        let stdin = io::stdin();
-        stdin
-            .lock()
-            .read_line(&mut self.buffer)
-            .expect("Could not read from stdin");
-        // TODO: Find better way to remove newline character
-        self.buffer.pop();
-    }
 }
 
 impl Table {
