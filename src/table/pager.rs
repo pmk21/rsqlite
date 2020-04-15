@@ -58,7 +58,7 @@ impl Pager {
                 };
 
                 let mut page: Vec<u8> = vec![0; buf_size];
-                // TODO: Better error handling mechanism
+
                 if self.file.read_exact(page.as_mut_slice()).is_err() {
                     println!("Error reading file. {}", page.len());
                     std::process::exit(1);

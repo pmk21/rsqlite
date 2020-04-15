@@ -16,7 +16,6 @@ use vm::{
 
 fn print_prompt() {
     print!("db > ");
-    // TODO: Handle error gracefully
     io::stdout().flush().expect("Could not flush stdout");
 }
 
