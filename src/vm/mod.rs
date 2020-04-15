@@ -1,6 +1,6 @@
 use crate::buffer::InputBuffer;
 use crate::constants::{EMAIL_SIZE, TABLE_MAX_ROWS, USERNAME_SIZE};
-use crate::table::{deserialize_row, print_row, row_slot, serialize_row, Row, Table};
+use crate::table::{print_row, row_slot, Row, Table};
 use std::str::FromStr;
 
 pub mod statement;
@@ -102,7 +102,7 @@ pub fn execute_insert(statement: &Statement, table: &mut Table) -> ExecuteResult
     };
 
     let (page_num, _) = row_slot(table, table.num_rows);
-    serialize_row(row, table, page_num);
+    table.serialize_row(row, page_num);
     table.num_rows += 1;
 
     ExecuteResult::Success
@@ -112,7 +112,7 @@ pub fn execute_insert(statement: &Statement, table: &mut Table) -> ExecuteResult
 pub fn execute_select(statement: &Statement, table: &mut Table) -> ExecuteResult {
     for i in 0..table.num_rows {
         let (page_num, byte_offset) = row_slot(table, i);
-        print_row(&deserialize_row(table, page_num, byte_offset));
+        print_row(&table.deserialize_row(page_num, byte_offset));
     }
     ExecuteResult::Success
 }
