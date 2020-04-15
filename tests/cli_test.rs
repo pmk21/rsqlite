@@ -18,7 +18,7 @@ fn insert_single_row() -> Result<(), Box<dyn std::error::Error>> {
         .assert()
         .success()
         .stdout(predicate::eq("db > Executed.\ndb > "));
-
+    clear_db_file("test.db");
     Ok(())
 }
 
@@ -39,7 +39,7 @@ fn insert_more_than_max_rows() -> Result<(), Box<dyn std::error::Error>> {
     let op: Vec<&str> = output_str.split('\n').collect();
 
     assert_eq!(op[op.len() - 2], "db > Error: Table full.");
-
+    clear_db_file("test.db");
     Ok(())
 }
 
@@ -64,7 +64,7 @@ fn insert_max_length_fields() -> Result<(), Box<dyn std::error::Error>> {
     let op: Vec<&str> = output_str.split('\n').collect();
 
     assert_eq!(op, expected_op);
-
+    clear_db_file("test.db");
     Ok(())
 }
 
@@ -88,7 +88,7 @@ fn insert_large_fields() -> Result<(), Box<dyn std::error::Error>> {
     let op: Vec<&str> = output_str.split('\n').collect();
 
     assert_eq!(op, expected_op);
-
+    clear_db_file("test.db");
     Ok(())
 }
 
@@ -107,7 +107,7 @@ fn insert_negative_id() -> Result<(), Box<dyn std::error::Error>> {
     let op: Vec<&str> = output_str.split('\n').collect();
 
     assert_eq!(op, expected_op);
-
+    clear_db_file("test.db");
     Ok(())
 }
 
@@ -137,6 +137,6 @@ fn check_persistence() -> Result<(), Box<dyn std::error::Error>> {
     let op2: Vec<&str> = output_str.split('\n').collect();
 
     assert_eq!(op2, expected_op2);
-
+    clear_db_file("test.db");
     Ok(())
 }
