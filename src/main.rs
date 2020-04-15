@@ -1,5 +1,3 @@
-#![allow(dead_code)]
-
 use std::env;
 use std::fs::{File, OpenOptions};
 use std::io::{self, BufRead, Read, Seek, SeekFrom, Write};
@@ -9,9 +7,6 @@ const PAGE_SIZE: u32 = 4096;
 const TABLE_MAX_PAGES: u32 = 100;
 const ROWS_PER_PAGE: u32 = PAGE_SIZE / ROW_SIZE;
 const TABLE_MAX_ROWS: u32 = ROWS_PER_PAGE * TABLE_MAX_PAGES;
-
-const COLUMN_USERNAME_SIZE: u32 = 32;
-const COLUMN_EMAIL_SIZE: u32 = 255;
 
 const ID_SIZE: usize = 4;
 const USERNAME_SIZE: usize = 32;
@@ -23,12 +18,9 @@ const ROW_SIZE: u32 = (ID_SIZE + USERNAME_SIZE + EMAIL_SIZE) as u32;
 
 struct InputBuffer {
     buffer: String,
-    buffer_length: usize,
-    input_length: usize,
 }
 
 enum MetaCommandResult {
-    Success,
     UnrecognizedCommand,
 }
 
@@ -77,8 +69,6 @@ impl InputBuffer {
     fn new() -> Self {
         InputBuffer {
             buffer: String::new(),
-            buffer_length: 0,
-            input_length: 0,
         }
     }
 
@@ -105,7 +95,7 @@ impl Table {
         let num_full_pages = self.num_rows / ROWS_PER_PAGE;
 
         for i in 0..num_full_pages {
-            if self.pager.pages[i as usize].len() == 0 {
+            if self.pager.pages[i as usize].is_empty() {
                 continue;
             }
             self.pager.flush(i);
@@ -121,7 +111,7 @@ impl Table {
             }
         }
 
-        if let Err(_) = self.pager.file.sync_data() {
+        if self.pager.file.sync_data().is_err() {
             println!("Error closing db file.");
             std::process::exit(1);
         }
@@ -153,7 +143,7 @@ impl Pager {
             std::process::exit(1);
         }
 
-        if self.pages[page_num as usize].len() == 0 {
+        if self.pages[page_num as usize].is_empty() {
             // Cache miss. Load from file
             let mut num_pages = self.file_length / PAGE_SIZE as u64;
 
@@ -163,9 +153,10 @@ impl Pager {
             }
 
             if page_num as u64 <= num_pages {
-                if let Err(_) = self
+                if self
                     .file
                     .seek(SeekFrom::Start((page_num * PAGE_SIZE) as u64))
+                    .is_err()
                 {
                     println!("Error seeking file.");
                     std::process::exit(1);
@@ -178,7 +169,7 @@ impl Pager {
 
                 let mut page: Vec<u8> = vec![0; buf_size];
                 // TODO: Better error handling mechanism
-                if let Err(_) = self.file.read_exact(page.as_mut_slice()) {
+                if self.file.read_exact(page.as_mut_slice()).is_err() {
                     println!("Error reading file. {}", page.len());
                     std::process::exit(1);
                 }
@@ -193,9 +184,10 @@ impl Pager {
             std::process::exit(1);
         }
 
-        if let Err(_) = self
+        if self
             .file
             .seek(SeekFrom::Start((page_num * PAGE_SIZE) as u64))
+            .is_err()
         {
             println!("Error seeking.");
             std::process::exit(1);
@@ -204,7 +196,7 @@ impl Pager {
         let drained_vec: Vec<u8> = self.pages[page_num as usize].drain(..).collect();
         self.pages[page_num as usize].shrink_to_fit();
 
-        if let Err(_) = self.file.write_all(drained_vec.as_ref()) {
+        if self.file.write_all(drained_vec.as_ref()).is_err() {
             println!("Error writing.");
             std::process::exit(1);
         }
@@ -222,11 +214,11 @@ fn do_meta_command(input_buffer: &InputBuffer, table: &mut Table) -> MetaCommand
         table.db_close();
         std::process::exit(0);
     } else {
-        return MetaCommandResult::UnrecognizedCommand;
+        MetaCommandResult::UnrecognizedCommand
     }
 }
 
-fn prepare_insert(args: &Vec<&str>, statement: &mut Statement) -> PrepareResult {
+fn prepare_insert(args: &[&str], statement: &mut Statement) -> PrepareResult {
     statement.row_to_insert.id = match FromStr::from_str(args[1]) {
         Ok(uint) => uint,
         Err(_) => return PrepareResult::NegativeID,
@@ -275,14 +267,14 @@ fn prepare_statement(input_buffer: &InputBuffer, statement: &mut Statement) -> P
 fn execute_statement(statement: &Statement, table: &mut Table) -> ExecuteResult {
     match statement.stmt_type {
         StatementType::Insert => {
-            return execute_insert(statement, table);
+            execute_insert(statement, table)
         }
         StatementType::Select => {
-            return execute_select(statement, table);
+            execute_select(statement, table)
         }
         StatementType::Empty => {
             println!("Empty statement");
-            return ExecuteResult::Success;
+            ExecuteResult::Success
         }
     }
 }
@@ -294,15 +286,15 @@ fn execute_insert(statement: &Statement, table: &mut Table) -> ExecuteResult {
 
     let row = Row {
         id: statement.row_to_insert.id,
-        username: statement.row_to_insert.username.clone(),
-        email: statement.row_to_insert.email.clone(),
+        username: statement.row_to_insert.username,
+        email: statement.row_to_insert.email,
     };
 
     let (page_num, _) = row_slot(table, table.num_rows);
     serialize_row(row, table, page_num);
     table.num_rows += 1;
 
-    return ExecuteResult::Success;
+    ExecuteResult::Success
 }
 
 fn row_slot(table: &mut Table, row_num: u32) -> (u32, u32) {
@@ -352,15 +344,19 @@ fn execute_select(statement: &Statement, table: &mut Table) -> ExecuteResult {
         let (page_num, byte_offset) = row_slot(table, i);
         print_row(&deserialize_row(table, page_num, byte_offset));
     }
-    return ExecuteResult::Success;
+    ExecuteResult::Success
 }
 
 fn print_row(row: &Row) {
     println!(
         "({}, {}, {})",
         row.id,
-        std::str::from_utf8(&row.username).unwrap().trim_end_matches(char::from(0)),
-        std::str::from_utf8(&row.email).unwrap().trim_end_matches(char::from(0))
+        std::str::from_utf8(&row.username)
+            .unwrap()
+            .trim_end_matches(char::from(0)),
+        std::str::from_utf8(&row.email)
+            .unwrap()
+            .trim_end_matches(char::from(0))
     );
 }
 
@@ -381,13 +377,12 @@ fn main() {
         print_prompt();
         input_buffer.read_input();
 
-        if input_buffer.buffer.len() == 0 {
+        if input_buffer.buffer.is_empty() {
             continue;
         }
 
-        if input_buffer.buffer.chars().next().unwrap() == '.' {
+        if input_buffer.buffer.starts_with('.') {
             match do_meta_command(&input_buffer, &mut table) {
-                MetaCommandResult::Success => continue,
                 MetaCommandResult::UnrecognizedCommand => {
                     println!("Unrecognized command '{}'.", input_buffer.buffer);
                     continue;
