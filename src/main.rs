@@ -14,6 +14,7 @@ use vm::{
     PrepareResult,
 };
 
+/// Prints basic prompt onto stdout
 fn print_prompt() {
     print!("db > ");
     io::stdout().flush().expect("Could not flush stdout");
@@ -24,6 +25,7 @@ fn main() {
 
     if args.len() < 2 {
         println!("Must supply database filename.");
+        println!("cargo run <filename>");
         std::process::exit(1);
     }
 
