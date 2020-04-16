@@ -1,7 +1,12 @@
+//! # Pager
+//! 
+//! Interface to load, hold and store pages into a file
+
 use crate::constants::{PAGE_SIZE, TABLE_MAX_PAGES};
 use std::fs::{File, OpenOptions};
 use std::io::{Read, Seek, SeekFrom, Write};
 
+/// A struct to hold all the pages and file metadata
 pub struct Pager {
     pub file: File,
     pub file_length: u64,
@@ -9,6 +14,24 @@ pub struct Pager {
 }
 
 impl Pager {
+    /// Opens a file to load the pages from,
+    /// if the file is not present, a new file is created.
+    /// Finally returns a `Pager` struct with relevant data
+    ///
+    /// # Arguments
+    ///
+    /// * `filename` - A string slice holding the file name
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use crate table::pager::Pager;
+    /// let pager = Pager::open("test.db");
+    /// ```
+    ///
+    /// # Panics
+    ///
+    /// Function might panic if there is some problem in creating or opening a file
     pub fn open(filename: &str) -> Self {
         let mut file = OpenOptions::new()
             .write(true)
@@ -24,6 +47,12 @@ impl Pager {
             pages: vec![vec![]; TABLE_MAX_PAGES as usize],
         }
     }
+
+    /// Gets the page corresponding to the `page_num`
+    /// 
+    /// # Arguments
+    /// 
+    /// * `page_num` - The index of the page to be loaded
     pub fn get_page(&mut self, page_num: u32) {
         if page_num > TABLE_MAX_PAGES {
             println!(
@@ -68,6 +97,11 @@ impl Pager {
         }
     }
 
+    /// Writes the page with given page number to the file on disk
+    /// 
+    /// # Arguments
+    /// 
+    /// * `page_num` - The index of the page to be written to the disk
     pub fn flush(&mut self, page_num: u32) {
         if self.pages[page_num as usize].is_empty() {
             println!("Tried to flush null page");
