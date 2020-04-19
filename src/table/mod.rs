@@ -109,6 +109,21 @@ impl Table {
             email,
         }
     }
+
+    /// Calculate the page and byte offset where a row must be present.
+    /// Also load the required page.
+    ///
+    /// # Arguments
+    ///
+    /// * `table` - A mutable reference to `Table` struct
+    /// * `row_num` - The index of the row in the table
+    pub fn row_slot(&mut self, row_num: u32) -> (u32, u32) {
+        let page_num = row_num / ROWS_PER_PAGE;
+        let row_offset = row_num % ROWS_PER_PAGE;
+        let byte_offset = row_offset * ROW_SIZE;
+        self.pager.get_page(page_num);
+        (page_num, byte_offset)
+    }
 }
 
 /// A struct to hold data present in a row
@@ -134,7 +149,6 @@ impl Row {
     ///
     /// * `row` - A non-mutable reference to a `Row` struct
     pub fn print_row(&self) {
-        // TODO: Move this function into Row?
         println!(
             "({}, {}, {})",
             self.id,
@@ -146,20 +160,4 @@ impl Row {
                 .trim_end_matches(char::from(0))
         );
     }
-}
-
-/// Calculate the page and byte offset where a row must be present.
-/// Also load the required page.
-///
-/// # Arguments
-///
-/// * `table` - A mutable reference to `Table` struct
-/// * `row_num` - The index of the row in the table
-pub fn row_slot(table: &mut Table, row_num: u32) -> (u32, u32) {
-    // TODO: Move this into Table?
-    let page_num = row_num / ROWS_PER_PAGE;
-    let row_offset = row_num % ROWS_PER_PAGE;
-    let byte_offset = row_offset * ROW_SIZE;
-    table.pager.get_page(page_num);
-    (page_num, byte_offset)
 }

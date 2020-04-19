@@ -4,7 +4,7 @@
 
 use crate::buffer::InputBuffer;
 use crate::constants::{EMAIL_SIZE, TABLE_MAX_ROWS, USERNAME_SIZE};
-use crate::table::{row_slot, Row, Table};
+use crate::table::{Row, Table};
 use std::str::FromStr;
 
 pub mod statement;
@@ -106,9 +106,9 @@ pub fn prepare_statement(input_buffer: &InputBuffer, statement: &mut Statement) 
 }
 
 /// Helper function to execute a SQL statement based on its type
-/// 
+///
 /// # Arguments
-/// 
+///
 /// * `statement` - A `Statement` struct holding the type of statement and relevant data based on the type
 /// * `table` - A `Table` struct holding current data
 pub fn execute_statement(statement: &Statement, table: &mut Table) -> ExecuteResult {
@@ -123,9 +123,9 @@ pub fn execute_statement(statement: &Statement, table: &mut Table) -> ExecuteRes
 }
 
 /// Helper function to execute a SQL insert statement
-/// 
+///
 /// # Arguments
-/// 
+///
 /// * `statement` - A `Statement` struct holding the type of statement and relevant data based on the type
 /// * `table` - A `Table` struct holding current data
 fn execute_insert(statement: &Statement, table: &mut Table) -> ExecuteResult {
@@ -139,7 +139,7 @@ fn execute_insert(statement: &Statement, table: &mut Table) -> ExecuteResult {
         email: statement.row_to_insert.email,
     };
 
-    let (page_num, _) = row_slot(table, table.num_rows);
+    let (page_num, _) = table.row_slot(table.num_rows);
     table.serialize_row(row, page_num);
     table.num_rows += 1;
 
@@ -147,14 +147,14 @@ fn execute_insert(statement: &Statement, table: &mut Table) -> ExecuteResult {
 }
 
 /// Helper function to execute a SQL select statement
-/// 
+///
 /// # Arguments
-/// 
+///
 /// * `statement` - A `Statement` struct holding the type of statement and relevant data based on the type
 /// * `table` - A `Table` struct holding current data
 fn execute_select(table: &mut Table) -> ExecuteResult {
     for i in 0..table.num_rows {
-        let (page_num, byte_offset) = row_slot(table, i);
+        let (page_num, byte_offset) = table.row_slot(i);
         &table.deserialize_row(page_num, byte_offset).print_row();
     }
     ExecuteResult::Success
