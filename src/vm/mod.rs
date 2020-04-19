@@ -53,7 +53,7 @@ pub fn do_meta_command(input_buffer: &InputBuffer, table: &mut Table) -> MetaCom
 /// * `args` - Data corresponding to the fields in a row of the table
 /// * `statement` - A `Statement` struct holding the type of statement and data to be inserted
 /// in the case of an insert statement
-pub fn prepare_insert(args: &[&str], statement: &mut Statement) -> PrepareResult {
+fn prepare_insert(args: &[&str], statement: &mut Statement) -> PrepareResult {
     statement.row_to_insert.id = match FromStr::from_str(args[1]) {
         Ok(uint) => uint,
         Err(_) => return PrepareResult::NegativeID,
@@ -128,7 +128,7 @@ pub fn execute_statement(statement: &Statement, table: &mut Table) -> ExecuteRes
 /// 
 /// * `statement` - A `Statement` struct holding the type of statement and relevant data based on the type
 /// * `table` - A `Table` struct holding current data
-pub fn execute_insert(statement: &Statement, table: &mut Table) -> ExecuteResult {
+fn execute_insert(statement: &Statement, table: &mut Table) -> ExecuteResult {
     if table.num_rows >= TABLE_MAX_ROWS {
         return ExecuteResult::TableFull;
     }
@@ -152,7 +152,7 @@ pub fn execute_insert(statement: &Statement, table: &mut Table) -> ExecuteResult
 /// 
 /// * `statement` - A `Statement` struct holding the type of statement and relevant data based on the type
 /// * `table` - A `Table` struct holding current data
-pub fn execute_select(table: &mut Table) -> ExecuteResult {
+fn execute_select(table: &mut Table) -> ExecuteResult {
     for i in 0..table.num_rows {
         let (page_num, byte_offset) = row_slot(table, i);
         print_row(&table.deserialize_row(page_num, byte_offset));
