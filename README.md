@@ -1,4 +1,6 @@
-# RSQLite ![](https://github.com/pmk21/rsqlite/workflows/rust/badge.svg)
+# RSQLite
+
+![](https://github.com/pmk21/rsqlite/workflows/rsqlite/badge.svg)
 
 A simple SQLite clone in Rust. This is basically a translation of the C code present on [this](https://cstack.github.io/db_tutorial/) brilliant tutorial into Rust(not fully idiomatic). This code contains implementation only upto Part 5 in the tutorial.
 
