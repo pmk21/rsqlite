@@ -30,7 +30,7 @@ Documentation of the various modules and functions can be seen by typing `$cargo
 
 ## Tests
 
-A few simple tests can be run with `cargo test -- --test-threads=1`.
+A few simple tests can be run with `$cargo test -- --test-threads=1`.
 
 ## License
 
