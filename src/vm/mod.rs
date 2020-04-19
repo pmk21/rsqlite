@@ -4,7 +4,7 @@
 
 use crate::buffer::InputBuffer;
 use crate::constants::{EMAIL_SIZE, TABLE_MAX_ROWS, USERNAME_SIZE};
-use crate::table::{print_row, row_slot, Row, Table};
+use crate::table::{row_slot, Row, Table};
 use std::str::FromStr;
 
 pub mod statement;
@@ -155,7 +155,7 @@ fn execute_insert(statement: &Statement, table: &mut Table) -> ExecuteResult {
 fn execute_select(table: &mut Table) -> ExecuteResult {
     for i in 0..table.num_rows {
         let (page_num, byte_offset) = row_slot(table, i);
-        print_row(&table.deserialize_row(page_num, byte_offset));
+        &table.deserialize_row(page_num, byte_offset).print_row();
     }
     ExecuteResult::Success
 }

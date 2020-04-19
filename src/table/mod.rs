@@ -68,9 +68,9 @@ impl Table {
     }
 
     /// Store all the data fields into a page
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `row` - The `Row` struct containing data to be stored
     /// * `page_num` - The corresponding page number where the data must be stored
     pub fn serialize_row(&mut self, row: Row, page_num: u32) {
@@ -83,9 +83,9 @@ impl Table {
     }
 
     /// Retrieve a row from a given page and byte offset
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `page_num` - The corresponding page number where the row data is present
     /// * `byte_offset` - The offset in the page where the row data starts
     pub fn deserialize_row(&self, page_num: u32, byte_offset: u32) -> Row {
@@ -127,32 +127,32 @@ impl Row {
             email: [0u8; EMAIL_SIZE],
         }
     }
-}
 
-/// Helper function to print a `Row`
-/// 
-/// # Arguments
-/// 
-/// * `row` - A non-mutable reference to a `Row` struct
-pub fn print_row(row: &Row) {
-    // TODO: Move this function into Row?
-    println!(
-        "({}, {}, {})",
-        row.id,
-        std::str::from_utf8(&row.username)
-            .unwrap()
-            .trim_end_matches(char::from(0)),
-        std::str::from_utf8(&row.email)
-            .unwrap()
-            .trim_end_matches(char::from(0))
-    );
+    /// Helper function to print a `Row`
+    ///
+    /// # Arguments
+    ///
+    /// * `row` - A non-mutable reference to a `Row` struct
+    pub fn print_row(&self) {
+        // TODO: Move this function into Row?
+        println!(
+            "({}, {}, {})",
+            self.id,
+            std::str::from_utf8(&self.username)
+                .unwrap()
+                .trim_end_matches(char::from(0)),
+            std::str::from_utf8(&self.email)
+                .unwrap()
+                .trim_end_matches(char::from(0))
+        );
+    }
 }
 
 /// Calculate the page and byte offset where a row must be present.
 /// Also load the required page.
-/// 
+///
 /// # Arguments
-/// 
+///
 /// * `table` - A mutable reference to `Table` struct
 /// * `row_num` - The index of the row in the table
 pub fn row_slot(table: &mut Table, row_num: u32) -> (u32, u32) {
