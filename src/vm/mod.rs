@@ -1,3 +1,7 @@
+//! # VM
+//!
+//! A very basic "vm" for SQL
+
 use crate::buffer::InputBuffer;
 use crate::constants::{EMAIL_SIZE, TABLE_MAX_ROWS, USERNAME_SIZE};
 use crate::table::{print_row, row_slot, Row, Table};
@@ -7,15 +11,18 @@ pub mod statement;
 
 use statement::{Statement, StatementType};
 
+/// Enum to show the result of executing a statement
 pub enum ExecuteResult {
     Success,
     TableFull,
 }
 
+/// Enum to show the result of meta commands
 pub enum MetaCommandResult {
     UnrecognizedCommand,
 }
 
+/// Enum to show the result of processing/preparing an SQL statement
 pub enum PrepareResult {
     Success,
     UnrecognizedStatement,
@@ -24,6 +31,12 @@ pub enum PrepareResult {
     NegativeID,
 }
 
+/// Helper function to run a meta command
+///
+/// # Arguments
+///
+/// * `input_buffer` - Buffer storing the user input from stdin
+/// * `table` - A `Table` struct holding current data
 pub fn do_meta_command(input_buffer: &InputBuffer, table: &mut Table) -> MetaCommandResult {
     if input_buffer.buffer == ".exit" {
         table.db_close();
@@ -33,6 +46,13 @@ pub fn do_meta_command(input_buffer: &InputBuffer, table: &mut Table) -> MetaCom
     }
 }
 
+/// Helper function to transform data for insertion into the database
+///
+/// # Arguments
+///
+/// * `args` - Data corresponding to the fields in a row of the table
+/// * `statement` - A `Statement` struct holding the type of statement and data to be inserted
+/// in the case of an insert statement
 pub fn prepare_insert(args: &[&str], statement: &mut Statement) -> PrepareResult {
     statement.row_to_insert.id = match FromStr::from_str(args[1]) {
         Ok(uint) => uint,
@@ -60,6 +80,12 @@ pub fn prepare_insert(args: &[&str], statement: &mut Statement) -> PrepareResult
     PrepareResult::Success
 }
 
+/// Helper function to process/prepare a SQL statement
+///
+/// # Arguments
+///
+/// * `input_buffer` - Buffer storing the user input from stdin
+/// * `statement` - A `Statement` struct holding the type of statement and relevant data based on the type
 pub fn prepare_statement(input_buffer: &InputBuffer, statement: &mut Statement) -> PrepareResult {
     if &input_buffer.buffer[0..6] == "insert" {
         statement.stmt_type = StatementType::Insert;
@@ -79,6 +105,12 @@ pub fn prepare_statement(input_buffer: &InputBuffer, statement: &mut Statement) 
     PrepareResult::UnrecognizedStatement
 }
 
+/// Helper function to execute a SQL statement based on its type
+/// 
+/// # Arguments
+/// 
+/// * `statement` - A `Statement` struct holding the type of statement and relevant data based on the type
+/// * `table` - A `Table` struct holding current data
 pub fn execute_statement(statement: &Statement, table: &mut Table) -> ExecuteResult {
     match statement.stmt_type {
         StatementType::Insert => execute_insert(statement, table),
@@ -90,6 +122,12 @@ pub fn execute_statement(statement: &Statement, table: &mut Table) -> ExecuteRes
     }
 }
 
+/// Helper function to execute a SQL insert statement
+/// 
+/// # Arguments
+/// 
+/// * `statement` - A `Statement` struct holding the type of statement and relevant data based on the type
+/// * `table` - A `Table` struct holding current data
 pub fn execute_insert(statement: &Statement, table: &mut Table) -> ExecuteResult {
     if table.num_rows >= TABLE_MAX_ROWS {
         return ExecuteResult::TableFull;
@@ -108,6 +146,12 @@ pub fn execute_insert(statement: &Statement, table: &mut Table) -> ExecuteResult
     ExecuteResult::Success
 }
 
+/// Helper function to execute a SQL select statement
+/// 
+/// # Arguments
+/// 
+/// * `statement` - A `Statement` struct holding the type of statement and relevant data based on the type
+/// * `table` - A `Table` struct holding current data
 pub fn execute_select(table: &mut Table) -> ExecuteResult {
     for i in 0..table.num_rows {
         let (page_num, byte_offset) = row_slot(table, i);
