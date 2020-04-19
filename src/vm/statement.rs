@@ -1,3 +1,7 @@
+//! # Statement
+//!
+//! An abstract interface for handling SQL statements
+
 use crate::table::Row;
 
 /// Enum to indicate the type of SQL statement
